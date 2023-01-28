@@ -24,8 +24,21 @@ async function run() {
     // Post API for All User
     app.post("/allUser", async (req, res) => {
       const userData = req.body;
+
       const result = await userCollection.insertOne(userData);
       res.send(result);
+    });
+
+    // get all user
+
+    app.get("/users", async (req, res) => {
+      const user = req.headers.email;
+
+      // console.log(user);
+      const query = {};
+      const result = await userCollection.find(query).toArray();
+      const finul = result.filter((res) => res.email !== user);
+      res.send(finul);
     });
 
     // get a single user by email
@@ -33,6 +46,40 @@ async function run() {
       const email = req.params.email;
       const query = { email: email };
       const result = await userCollection.findOne(query);
+      res.send(result);
+    });
+
+    // get user following list
+
+    app.get("/users/following/:email", async (req, res) => {
+      const email = req.params.email;
+      const query = { email: email };
+      const nQ = { email: null };
+      const followings = await userCollection.findOne(query);
+
+      const hq = followings.following.filter((f) => f);
+
+      const result = await userCollection
+        .find({ email: { $in: hq } })
+        .toArray();
+
+      res.send(result);
+    });
+
+    // get user Follwer Lish
+
+    app.get("/users/followers/:email", async (req, res) => {
+      const email = req.params.email;
+      const query = { email: email };
+      const nQ = { email: null };
+      const followings = await userCollection.findOne(query);
+
+      const hq = followings.followers.filter((f) => f);
+
+      const result = await userCollection
+        .find({ email: { $in: hq } })
+        .toArray();
+
       res.send(result);
     });
 
@@ -56,6 +103,52 @@ async function run() {
       };
       const result = await userCollection.updateOne(filter, updateDoc, options);
       res.send(result);
+    });
+
+    // update user data by user Email
+
+    app.patch("/users/:email", async (req, res) => {
+      const email = req.params.email;
+      const FollowingEmail = req.body.FollowingEmail;
+      const FollowingFilter = { email: FollowingEmail };
+      const FollowerFilter = { email: email };
+      const options = { upsert: true };
+
+      const resultOne = await userCollection.updateOne(
+        FollowingFilter,
+        { $push: { followers: email } },
+        options
+      );
+
+      if (resultOne.modifiedCount === 1) {
+        const resultTwo = await userCollection.updateOne(FollowerFilter, {
+          $push: { following: FollowingEmail },
+        });
+        res.send(resultTwo);
+      }
+    });
+
+    // unfollow a user
+
+    app.put("/alluser/:email", async (req, res) => {
+      const email = req.params.email;
+      const UnfollowingEmail = req.body.FollowingEmail;
+      const UnfollowingFilter = { email: UnfollowingEmail };
+      const UnfollowerFilter = { email: email };
+      const options = { upsert: true };
+
+      const resultOne = await userCollection.updateOne(UnfollowingFilter, {
+        $pull: { followers: { $in: [`${email}`] } },
+      });
+
+      if (resultOne.modifiedCount === 1) {
+        const resultTwo = await userCollection.updateOne(UnfollowerFilter, {
+          $pull: {
+            following: { $in: [`${UnfollowingEmail}`] },
+          },
+        });
+        res.send(resultTwo);
+      }
     });
 
     // user give a Post
